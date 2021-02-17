@@ -32,16 +32,20 @@ local boss = false
 
 function open()
 	ESX.TriggerServerCallback('advance_gangs:getplayer', function(cb)
-		gang = cb[1].gang
-		boss = cb[1].boss
-
 		local elements = {}
-			
-		if gang then
+		local title = "Gäng"
+
+		if cb[1] then
+			title = cb[1].gang
+			gang = cb[1].gang
+			boss = cb[1].boss
 			table.insert(elements, {
 				["label"] = "Alla medlemmar", ["value"] = 'members'
 			})
-			if boss == "1" then
+			table.insert(elements, {
+				["label"] = "Lämna " .. gang, ["value"] = 'leave'
+			})
+			if cb[1].boss == "1" then
 				table.insert(elements, {
 					["label"] = "Bjud in nämsta spelare", ["value"] = 'invite'
 				})
@@ -58,7 +62,7 @@ function open()
 		ESX.UI.Menu.Open(
 			'default', GetCurrentResourceName(), 'menu',
 			{
-				title    = "Gäng",
+				title    = title,
 				align    = "center",
 				elements = elements
 
@@ -74,6 +78,14 @@ function open()
 					menu.close()
 					members(gang)
 				end
+				if data.current.value == 'leave' then
+					menu.close()
+					leave(gang)
+				end
+
+				if data.current.value == 'invite' then
+					inviteplayer(gang)
+				end
 					
 				
 
@@ -84,34 +96,40 @@ function open()
 
 end
 
-function kickmember(member)
-
-end
-
 function creategang()
 	ESX.UI.Menu.Open('dialog', GetCurrentResourceName(), 'creategang',
-	{
-	  title = ('Namn på ditt nya gäng')
-	},
+		{
+		title = ('Namn på ditt nya gäng')
+		},
 	function(data, menu)
 		if data.value == "" or data.value == nil then
 			
 		else
 			menu.close()
-			TriggerServerEvent('advance_gangs:creategang', data.value)
-			TriggerEvent('esx:showNotification', 'Du skapade gänget ' .. data.value)
+			createtgang(data.value)
+			
 		end
 	end,
 	function(data, menu)
 		menu.close()
 	end)
+
+end
+
+function createtgang(name)
+	ESX.TriggerServerCallback('advance_gangs:creategang', function(cb)
+		if cb then
+			TriggerEvent('esx:showNotification', 'Du skapade gänget ' .. name)
+		else
+			TriggerEvent('esx:showNotification', 'Namnet är upptaget')
+		end
+	end, name)
 end
 
 function members(gang)
 
 	ESX.TriggerServerCallback('advance_gangs:getmembers', function(cb)
 		local elements = cb
-		print(cb)
 		ESX.UI.Menu.Open(
 			'default', GetCurrentResourceName(), 'members',
 			{
@@ -120,7 +138,12 @@ function members(gang)
 				elements = elements
 
 			},
-			function(data, menu)		
+			function(data, menu)
+					
+				
+				menu.close()
+				kickplayer(data.current.value)
+				
 
 			end, function(data, menu)
 				menu.close()
@@ -128,4 +151,125 @@ function members(gang)
 
 	end, gang)
 
+end
+
+function kickplayer(player)
+
+	local elements = {}
+
+	table.insert(elements, {
+		["label"] = "Ja", ["value"] = 'yes'
+	})
+	table.insert(elements, {
+		["label"] = "Nej", ["value"] = 'no'
+	})
+	ESX.UI.Menu.Open(
+		'default', GetCurrentResourceName(), 'kick',
+		{
+			title    = "Vill du sparka " .. player,
+			align    = "center",
+			elements = elements
+
+		},
+		function(data, menu)		
+			if data.current.value == 'yes' then
+				menu.close()
+				TriggerServerEvent('advance_gangs:kickplayer', player)
+			end
+			if data.current.value == 'no' then
+				menu.close()
+				
+			end
+
+		end, function(data, menu)
+			menu.close()
+	end)
+	
+
+end
+
+function inviteplayer(gang)
+	local closestPlayer, closestPlayerDistance = ESX.Game.GetClosestPlayer()
+
+	if closestPlayer == -1 or closestPlayerDistance > 1.0 then
+		TriggerEvent('esx:showNotification', 'Ingen är nära dig')
+	else
+		TriggerEvent('esx:showNotification', 'Du bjöd in nämaste spelaren')
+		TriggerServerEvent('advance_gangs:invite', GetPlayerServerId(closestPlayer), gang)
+	end
+
+end
+
+RegisterNetEvent("advance_gangs:invited")
+AddEventHandler("advance_gangs:invited", function(gang)
+	
+	local elements = {}
+
+	table.insert(elements, {
+		["label"] = "Ja", ["value"] = 'yes'
+	})
+	table.insert(elements, {
+		["label"] = "Nej", ["value"] = 'no'
+	})
+	ESX.UI.Menu.Open(
+		'default', GetCurrentResourceName(), 'join',
+		{
+			title    = "Vill du gå med i " .. gang,
+			align    = "center",
+			elements = elements
+
+		},
+		function(data, menu)		
+			if data.current.value == 'yes' then
+				menu.close()
+				ESX.TriggerServerCallback('advance_gangs:join', function(cb)
+					if cb then
+						TriggerEvent('esx:showNotification', 'Du gick med i ' .. gang)
+					else
+						TriggerEvent('esx:showNotification', 'Du är redan med i ett gäng')
+					end
+				end, gang)
+			end
+			if data.current.value == 'no' then
+				menu.close()
+				
+			end
+
+		end, function(data, menu)
+			menu.close()
+	end)
+	
+end)
+
+function leave(gang)
+
+	local elements = {}
+
+	table.insert(elements, {
+		["label"] = "Ja", ["value"] = 'yes'
+	})
+	table.insert(elements, {
+		["label"] = "Nej", ["value"] = 'no'
+	})
+	ESX.UI.Menu.Open(
+		'default', GetCurrentResourceName(), 'leave',
+		{
+			title    = "Vill du lämna " .. gang,
+			align    = "center",
+			elements = elements
+
+		},
+		function(data, menu)		
+			if data.current.value == 'yes' then
+				menu.close()
+				TriggerServerEvent('advance_gangs:leave')
+			end
+			if data.current.value == 'no' then
+				menu.close()
+				
+			end
+
+		end, function(data, menu)
+			menu.close()
+	end)
 end
